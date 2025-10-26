@@ -1,0 +1,257 @@
+---
+title: "Private School Estimates"
+output: pdf_document
+date: "2025-06-02"
+---
+
+Data Cleaning and Organization
+```{r}
+library(readxl)
+library(dplyr)
+library(tidyr)
+
+# Load Data
+spending <- read_excel("NCAA Public Data.xlsx", sheet = "Sheet1")
+private_perf <- read_excel("NCAA Public Data.xlsx", sheet = "Sheet3")
+win_loss <- read.csv("win_loss_percentages.csv")
+srs <- read.csv("srs_values.csv")
+
+spending
+private_perf
+win_loss
+srs
+
+# Reshape spending data to long format
+spending_long <- spending %>%
+  select(School, `2017-2018`:`2023-2024`) %>%
+  pivot_longer(cols = -School, names_to = "Year", values_to = "Spending")
+
+
+
+# Reshape win/loss data
+colnames(win_loss) <- gsub("^X", "", colnames(win_loss))         
+colnames(win_loss) <- gsub("\\.", "-", colnames(win_loss))       
+win_long <- win_loss %>%
+  pivot_longer(cols = starts_with("20"), names_to = "Year", values_to = "Win_Percentage") %>%
+  rename(School = Name)
+win_long$School <- gsub("_", " ", win_long$School)
+
+# Reshape SRS data
+colnames(srs) <- gsub("^X", "", colnames(srs))
+colnames(srs) <- gsub("\\.", "-", colnames(srs))
+srs_long <- srs %>%
+  pivot_longer(cols = starts_with("20"), names_to = "Year", values_to = "SRS") %>%
+  rename(School = Name)
+srs_long$School <- gsub("_", " ", srs_long$School)
+
+# Clean the school names
+spending_long$School <- recode(spending_long$School,
+  "Coastal California" = "Coastal",
+  "Conecticut" = "Connecticut",
+  "Lousiana Tech" = "Louisiana Tech",
+  "Lousiana, Lafayette" = "Louisiana",
+  "Lousiana, Monroe" = "Louisiana Monroe",
+  "Miami (Ohio)" = "Miami Ohio",
+  "Old Domionion" = "Old Dominion"
+)
+
+spending_long <- spending_long %>% filter(School != "LSU")
+
+spending_long$School <- as.character(spending_long$School)
+spending_long$Year <- as.character(spending_long$Year)
+
+win_long$School <- as.character(win_long$School)
+win_long$Year <- as.character(win_long$Year)
+
+srs_long$School <- as.character(srs_long$School)
+srs_long$Year <- as.character(srs_long$Year)
+
+
+clean_join_keys <- function(df) {
+  df$School <- df$School %>%
+    gsub("_", " ", .) %>%
+    gsub("\\s+", " ", .) %>%
+    trimws()
+  
+  df$Year <- trimws(df$Year)
+  return(df)
+}
+
+spending_long <- clean_join_keys(spending_long)
+win_long <- clean_join_keys(win_long)
+srs_long <- clean_join_keys(srs_long)
+
+# Find shared School-Year combinations across all three datasets
+valid_keys <- inner_join(win_long, srs_long, by = c("School", "Year")) %>%
+  inner_join(spending_long, by = c("School", "Year")) %>%
+  select(School, Year)
+
+# Filter each dataset to only those rows
+spending_long <- inner_join(spending_long, valid_keys, by = c("School", "Year"))
+win_long <- inner_join(win_long, valid_keys, by = c("School", "Year"))
+srs_long <- inner_join(srs_long, valid_keys, by = c("School", "Year"))
+
+
+colnames(spending)
+
+
+
+
+# Merge all three
+public_data <- spending_long %>%
+  inner_join(win_long, by = c("School", "Year")) %>%
+  inner_join(srs_long, by = c("School", "Year")) %>%
+  drop_na()
+
+public_data
+
+nrow(spending_long)          
+nrow(win_long)               
+nrow(srs_long)      
+
+public_data$Spending <- gsub("[$,]", "", public_data$Spending)  
+public_data$Spending <- as.numeric(public_data$Spending)         
+
+
+```
+
+
+
+
+Regression Model
+```{r}
+model <- lm(Spending ~ Win_Percentage + SRS, data = public_data)
+summary(model)
+
+library(ggplot2)
+
+# Add predictions and residuals
+public_data <- public_data %>%
+  mutate(
+    Spending = as.numeric(Spending),
+    Predicted_Spending = predict(model, newdata = public_data),
+    Residual = Spending - Predicted_Spending
+  )
+
+# Average residual per school
+residual_summary <- public_data %>%
+  group_by(School) %>%
+  summarize(Average_Residual = mean(Residual, na.rm = TRUE)) %>%
+  arrange(desc(abs(Average_Residual)))
+
+# Plot top 20 absolute residuals
+top_residuals <- residual_summary %>%
+  slice_max(order_by = abs(Average_Residual), n = 20)
+
+ggplot(top_residuals, aes(x = reorder(School, Average_Residual), y = Average_Residual, fill = Average_Residual > 0)) +
+  geom_col(show.legend = FALSE) +
+  coord_flip() +
+  labs(title = "Top 20 Schools by Spending Residual",
+       x = "School",
+       y = "Residual (Actual - Predicted Spending)") +
+  scale_fill_manual(values = c("red", "green")) 
+
+```
+Main Takeaways:
+58.5% of variation in spending is explained by Win% and SRS
+Big F-stat and low p-value means model is statistically significant
+Typical Error in prediction is about 3.1 million, median residual is -392416
+Schools with negative residuals overperform their expectations
+Louisville and Kentucky overspend by 10 million 
+
+
+Private School Data
+```{r}
+# manually inputting private school data
+private_data <- data.frame(
+  School = rep(c("Duke", "Gonzaga", "Villanova"), each = 7),
+  Year = rep(c("2017-2018", "2018-2019", "2019-2020", "2020-2021", "2021-2022", "2022-2023", "2023-2024"), times = 3),
+  Win_Percentage = c(
+    0.85, 0.91, 0.78, 0.65, 0.73, 0.88, 0.84,     # Duke
+    0.89, 0.94, 0.90, 0.95, 0.92, 0.91, 0.89,     # Gonzaga
+    0.88, 0.76, 0.80, 0.82, 0.78, 0.84, 0.79      # Villanova
+  ),
+  SRS = c(
+    20.1, 22.5, 18.3, 14.7, 17.2, 21.4, 20.7,     # Duke
+    23.0, 24.8, 21.6, 25.1, 23.9, 22.4, 23.3,     # Gonzaga
+    21.2, 17.5, 18.8, 20.1, 19.6, 21.0, 18.9      # Villanova
+  )
+)
+
+
+# Prediction data set
+private_data$Predicted_Spending <- predict(model, newdata = private_data)
+
+
+```
+Visualize Private Schools
+```{r}
+library(ggplot2)
+
+# preds = data set with standard error
+preds <- predict(model, newdata = private_data, se.fit = TRUE)
+
+private_data$Predicted_Spending <- preds$fit
+private_data$SE <- preds$se.fit
+private_data$Lower_CI <- preds$fit - 1.96 * preds$se.fit  
+private_data$Upper_CI <- preds$fit + 1.96 * preds$se.fit  
+
+# All 3 no error bars
+ggplot(private_data, aes(x = Year, y = Predicted_Spending, group = School, color = School)) +
+  geom_line(size = 1.2) +
+  geom_point(size = 2) +
+  labs(
+    title = "Predicted MBB Spending for Private Schools",
+    x = "Year",
+    y = "Predicted Spending ($)"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+# Duke plot
+ggplot(private_data %>% filter(School == "Duke"), 
+       aes(x = Year, y = Predicted_Spending)) +
+  geom_line(color = "navy", size = 1.2, group = 1) +
+  geom_point(color = "navy", size = 2) +
+  geom_errorbar(aes(ymin = Lower_CI, ymax = Upper_CI), width = 0.2, color = "navy") +
+  labs(
+    title = "Predicted MBB Spending for Duke",
+    x = "Year",
+    y = "Predicted Spending ($)"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Gonzaga Plot
+ggplot(private_data %>% filter(School == "Gonzaga"), 
+       aes(x = Year, y = Predicted_Spending)) +
+  geom_line(color = "darkgreen", size = 1.2, group = 1) +
+  geom_point(color = "darkgreen", size = 2) +
+  geom_errorbar(aes(ymin = Lower_CI, ymax = Upper_CI), width = 0.2, color = "darkgreen") +
+  labs(
+    title = "Predicted MBB Spending for Gonzaga",
+    x = "Year",
+    y = "Predicted Spending ($)"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+# Villanova Plot
+ggplot(private_data %>% filter(School == "Villanova"), 
+       aes(x = Year, y = Predicted_Spending)) +
+  geom_line(color = "red", size = 1.2, group = 1) +
+  geom_point(color = "red", size = 2) +
+  geom_errorbar(aes(ymin = Lower_CI, ymax = Upper_CI), width = 0.2, color = "red") +
+  labs(
+    title = "Predicted MBB Spending for Villanova",
+    x = "Year",
+    y = "Predicted Spending ($)"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+```
+
