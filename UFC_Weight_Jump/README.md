@@ -5,7 +5,7 @@ This project analyzes the impact of moving up in weight class on fighter perform
 
 ### Article
 **Weight Jump Wonders**  
-📖 [Read on WagerWire](https://www.wagerwire.com/community/articles/weight-jump-wonders)
+[Read on WagerWire](https://www.wagerwire.com/community/articles/weight-jump-wonders)
 
 ### Data
 - **`ufc_317_main_data.csv`** – Complete dataset of fighters who moved up in weight, including odds, results, height/reach differences, and ROI calculations.  
