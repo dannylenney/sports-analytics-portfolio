@@ -1,0 +1,26 @@
+,,,,
+Height Category,Wins,Fights,Win Rate (dec),Win Rate (%)
+Shorter than Average Height,19,29,0.6551724138,65.52%
+Taller than Average Height,7,11,0.6363636364,63.64%
+,,,,
+Height Category,ROI %,,,
+Shorter than Average Height,26.28129167,,,
+Taller than Average Height,30.11927752,,,
+,,,,
+Reach Category,Wins,Fights,Win Rate (dec),Win Rate (%)
+Shorter than Average Reach,16,25,0.64,64.00%
+Longer than Average Reach,10,15,0.6666666667,66.67%
+,,,,
+Reach Category,ROI %,,,
+Shorter than Average Reach,21.51161719,,,
+Longer than Average Reach,37.0452721,,,
+,,,,
+Weight Category,Wins,Fights,Win Rate (dec),Win Rate (%)
+Light (135-145),11,16,0.6875,68.75%
+Middle (155-185),8,11,0.7272727273,72.72%
+Heavy (205-265),7,13,0.5384615385,53.85%
+,,,,
+Weight Category,ROI %,,,
+Light (135-145),15.42%,,,
+Middle (155-185),86.21%,,,
+Heavy (205-265),-36.01%,,,
