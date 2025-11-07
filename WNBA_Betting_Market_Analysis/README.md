@@ -37,6 +37,6 @@ Favorites slightly outperformed their implied odds, suggesting a **small underva
 
 ---
 
-### 🏀 Summary
+### Summary
 This project demonstrates that the WNBA betting market is highly well-calibrated, with only minor biases toward favorites.  
 In other words — **the oddsmakers are good at their jobs.**
