@@ -1,0 +1,97 @@
+---
+title: "NBA Salary Cap"
+output:
+  pdf_document:
+    latex_engine: xelatex
+date: "2025-11-07"
+---
+
+Importing Data
+```{r}
+library(readr)
+library(dplyr)      
+library(ggplot2)    
+library(janitor)    
+library(scales)     
+library(broom)
+library(ggthemes)   
+
+nba <- read_csv("NBA Salary Cap Data - 24-25 Salaries.csv") |> 
+  clean_names() 
+```
+
+Data Manipulation
+```{r}
+
+
+nba <- nba |> 
+  mutate(
+    total_cap = parse_number(total_cap),
+    cap_m = total_cap/1000000, 
+    salary_1 = parse_number(`number_1_salary`),
+    salary_2 = parse_number(`number_2_salary`),
+    salary_3 = parse_number(`number_3_salary`),
+    rest_of_team = parse_number(rest_of_team),
+    top3_total = salary_1 + salary_2 + salary_3,
+    top3_share = parse_number(`percent_of_payroll_on_top_3`) / 100,
+    rank_change_calc = `final_power_ranking_the_athletic` - `preseason_power_rankings_nba_com`,
+    balance_index = rest_of_team / top3_total
+  )
+
+
+```
+Data Visualization - Top-3 payroll share vs Final Ranking
+```{r}
+p_final <- ggplot(nba, aes(x = top3_share, y = final_power_ranking_the_athletic)) +
+  geom_point(size = 3) +
+  geom_smooth(method = "lm", se = TRUE, color = "black") +
+  scale_x_continuous(labels = percent) +
+  scale_y_reverse(breaks = seq(1, 30, by = 2)) +  # 1 = best, 30 = worst
+  labs(
+    title = "Payroll Concentration vs Final Power Ranking (2024–25)",
+    subtitle = "Lower Ranking = Better Team Performance",
+    x = "% of Payroll in Top 3 Players",
+    y = "Final Ranking (The Athletic)"
+  ) +
+  theme_classic(base_size = 14)
+p_final
+
+ggsave("NBA_Top3_Allocation_vs_Final_Ranking.png", p_final, width = 9, height = 6, dpi = 300, units = "in")
+
+
+m_rank_final <- lm(final_power_ranking_the_athletic ~ top3_share + cap_m, data = nba)
+summary(m_rank_final)
+
+```
+R² = 0.03, Adjusted R² = –0.04, p = 0.67, β(top3_share) = –2.44 (p = 0.90), β(cap_m) = –0.09 (p = 0.46)
+
+Takeaways:
+There was no statistically significant relationship between payroll concentration and team performance. Teams that allocated a larger share of their payroll to their top three players did not perform meaningfully better or worse in final power rankings, suggesting that overall spending structure had little impact on success in the 2024–25 season.
+
+
+Data Visualization - Payroll Concentration vs Ranking Change
+```{r}
+p_change <- ggplot(nba, aes(x = top3_share, y = rank_change_calc)) +
+  geom_point(size = 3) +
+  geom_smooth(method = "lm", se = TRUE, color = "black") +
+  scale_x_continuous(labels = percent) +
+  labs(
+    title = "Payroll Concentration vs Change in Power Ranking (2024–25)",
+    subtitle = "Negative values = Improved vs Preseason Expectations",
+    x = "% of Payroll in Top 3 Players",
+    y = "Change in Ranking (Final - Preseason)"
+  ) +
+  theme_classic(base_size = 14)
+p_change
+ggsave("NBA_Top3_Allocation_vs_Ranking_Change.png", p_change, width = 9, height = 6, dpi = 300, units = "in")
+
+m_rank_change <- lm(rank_change_calc ~ top3_share + cap_m, data = nba)
+summary(m_rank_change)
+
+```
+R² = 0.21, Adjusted R² = 0.15, F-test p = 0.040
+β(top3_share) = +33.91 (p = 0.048)
+β(cap_m) = +0.058 (p = 0.57)
+
+Takeaways:
+Higher payroll concentration in the top three players is positively associated with worse ranking change (more positive = underperformed preseason), while total cap is not predictive. In 2024–25, top-heavy teams tended to underperform expectations modestly, though the effect size is moderate and results should be read with small-N caution.
